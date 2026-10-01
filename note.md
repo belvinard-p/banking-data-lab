@@ -124,6 +124,45 @@ Parades :
 6. **Validation** : nombre de lignes, total de contrôle, cas limites, **recoupement par un calcul indépendant**.
 7. **Livraison** : note de livraison + une phrase métier.
 
+### Requêtes de sanité / contrôles : « 0 ligne = tout va bien »
+
+Avant toute analyse, je vérifie que la base est digne de confiance (`sql/00_sanity/sanity_checks.sql`, à relancer après chaque chargement).
+
+Une requête de contrôle **cherche les anomalies** : 0 ligne = règle respectée ; chaque ligne renvoyée = un problème à investiguer.
+
+```sql
+-- Modèle générique : les lignes de A qui n'ont aucune ligne liée dans B
+SELECT a.id FROM table_a a
+WHERE  <filtre>
+AND    NOT EXISTS (SELECT 1 FROM table_b b WHERE b.a_id = a.id);
+```
+
+Familles de contrôles : volumétrie, partie double (débits = crédits), recoupement de soldes, orphelins, unicité (1 seul titulaire PRIMARY), cohérence entre deux sources (statut actuel vs historique), chevauchement de périodes, mouvements après clôture.
+
+**Contrôle technique** = une liste de règles qui doivent **toujours** être vraies (des invariants), vérifiées une par une avant d'utiliser la base. Chaque requête = un point OK/KO.
+
+**Écrire un contrôle en 4 questions :**
+1. Quelle règle doit toujours être vraie ?
+2. À quoi ressemble une **violation** ?
+3. Quelles tables et colonnes ?
+4. Requête qui renvoie les violations → attendu 0 ligne.
+
+| Famille | Question type | Technique SQL |
+| --- | --- | --- |
+| Absence | A sans B | `NOT EXISTS` |
+| Orphelin | B pointe vers un A inexistant | `NOT EXISTS` ou `LEFT JOIN … IS NULL` |
+| Cardinalité | exactement 1 | `GROUP BY` + `COUNT(CASE WHEN …)` + `HAVING <> 1` |
+| Deux sources | A dit X, B dit Y | jointure + `<>` |
+| Période | chevauchement | `LEAD(valid_from) OVER (PARTITION BY … ORDER BY …)` |
+| Agrégat vs référence | somme des détails = total | **pré-agréger** dans une CTE, puis comparer |
+
+Pièges récurrents :
+- Partir de la **bonne table** : un compte sans aucun titulaire n'apparaît pas si je pars de `ACCOUNT_HOLDER`.
+- Un `JOIN` simple fait disparaître les lignes sans correspondance → `LEFT JOIN` + `NVL`.
+- `WHERE` filtre des lignes **avant** le `GROUP BY` ; `HAVING` filtre des **groupes** après.
+- `>` ou `>=` sur les dates : se demander ce qui se passe **le jour même**.
+- Un contrôle n'est prouvé que s'il a déjà trouvé quelque chose : casser une donnée (`UPDATE`), vérifier qu'il la détecte, puis `ROLLBACK`.
+
 > Règle d'or : on ne livre **jamais** un chiffre sans l'avoir recoupé autrement.
 
 ### Recouper = obtenir le même chiffre par un autre chemin
@@ -163,6 +202,35 @@ Réflexe face à une erreur `ORA-xxxxx` : lire le **code**, il dit presque toujo
 
 Un `.venv` ne se déplace pas et ne se commite pas : il se **recrée** à partir de `requirements.txt`.
 
+### Le générateur (`data-generator/generate.py`)
+
+Il invente 33 mois de vie bancaire (01/01/2024 → 30/09/2026) en mémoire, puis recrée le schéma et charge Oracle.
+
+- **Graine** `--seed 42` : mêmes données à chaque exécution, donc résultats testables.
+- **`post()`** = la partie double : 1 ligne `TXN` + 1 ligne `GL_ENTRY` par jambe, solde client mis à jour.
+- **Simulation jour par jour** : salaires le 25, retraits en hausse en décembre, cartes, Mobile Money, virements, frais en fin de mois (2 % extournés), intérêts trimestriels, photo des soldes chaque jour ouvré.
+- Paiement refusé si disponible insuffisant → `TXN.status = 'REJECTED'` **sans écriture**.
+- Prêts : 75 % bons payeurs, 15 % en retard (paiements partiels), 10 % défaillants.
+- v0 = données **propres**. v1 (sem. 14-15) = données **sales** + manifeste d'anomalies.
+- Options : `--size small|medium|large`, `--dry-run` (sans charger la base).
+
+### Voir la base
+
+```text
+Docker (conteneur banking-oracle) → Oracle (moteur) → FREEPDB1 (base) → CBS_LAB (schéma) → tables
+```
+
+On ne « voit » pas les tables dans Docker : on s'y connecte avec un **client SQL** sur `localhost:1521`, service `FREEPDB1`, utilisateur `CBS_LAB`.
+
+- **SQL Developer** (ou l'extension VS Code) : connexion de type *Service name* = `FREEPDB1`. Exécuter : Ctrl+Entrée.
+- **SQL*Plus** dans le conteneur : `winpty docker exec -it banking-oracle sqlplus CBS_LAB@FREEPDB1`
+
+```sql
+SELECT table_name, num_rows FROM user_tables ORDER BY table_name;  -- mes tables
+DESC account                                                        -- colonnes d'une table
+SELECT * FROM account FETCH FIRST 10 ROWS ONLY;                     -- aperçu, toujours limité
+```
+
 ## 7. Règles de confidentialité
 
 - Le projet se fait **chez moi**, avec des **données générées** uniquement.
@@ -187,3 +255,8 @@ Un `.venv` ne se déplace pas et ne se commite pas : il se **recrée** à partir
 - 01/10/2026 — Recouper : retrouver le même chiffre par une source ou une méthode indépendante ; éviter la validation circulaire.
 - 01/10/2026 — `.venv` cassé après un renommage de dossier : le recréer, et utiliser `python -m pip`.
 - 01/10/2026 — `ORA-01017` : utilisateur créé au 1er démarrage du volume avec un autre mot de passe ; réaligné par `ALTER USER`.
+- 01/10/2026 — Le générateur : graine fixe, `post()` = partie double, simulation jour par jour, transactions rejetées sans écriture.
+- 01/10/2026 — Requêtes de contrôle : invariants, méthode en 4 questions, 6 familles (absence, orphelin, cardinalité, deux sources, période, agrégat vs référence).
+
+
+Ce fichier est le contrôle technique de votre base. Ce sont 10 requêtes à lancer juste après chaque chargement, pour vérifier que les données sont cohérentes avant de faire la moindre analyse dessus.
