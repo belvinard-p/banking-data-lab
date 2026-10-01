@@ -1,0 +1,24 @@
+# Secrets
+.env
+
+# Document de parcours PERSONNEL : ne jamais publier
+Parcours_*.md
+Parcours_*.docx
+Parcours_*.pdf
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+
+# Sorties générées (sauf exemples du jeu small committés volontairement)
+*.log
+/out/
+
+# Java
+api/target/
+
+# IDE
+.vscode/
+.idea/
