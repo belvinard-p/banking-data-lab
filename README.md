@@ -28,3 +28,5 @@ python -m venv .venv && .venv/Scripts/python -m pip install -r data-generator/re
 | daily_balance | 314 058 |
 
 Période simulée : 01/01/2024 → 30/09/2026.
+
+create new branch
