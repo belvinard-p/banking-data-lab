@@ -6,6 +6,9 @@ Parcours_*.md
 Parcours_*.docx
 Parcours_*.pdf
 
+# Brouillons de posts LinkedIn : personnels, ne jamais publier
+post_linkeding/
+
 # Python
 __pycache__/
 *.pyc
