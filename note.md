@@ -124,6 +124,11 @@ Parades :
 6. **Validation** : nombre de lignes, total de contrôle, cas limites, **recoupement par un calcul indépendant**.
 7. **Livraison** : note de livraison + une phrase métier.
 
+**Phrase d'interprétation = un chiffre + un périmètre + une explication.** Exemple (E4) :
+> « Sur la période du 01/01/2024 au 30/09/2026, 580 opérations Mobile Money ont été rejetées, toutes des retraits du compte vers un wallet, pour solde disponible insuffisant. »
+
+Toujours préciser les **limites** : « dans ce modèle », ce que le chiffre ne couvre pas (ex. une vraie banque rejette aussi des dépôts : compte bloqué, plafond, KYC, anti-blanchiment).
+
 ### Requêtes de sanité / contrôles : « 0 ligne = tout va bien »
 
 Avant toute analyse, je vérifie que la base est digne de confiance (`sql/00_sanity/sanity_checks.sql`, à relancer après chaque chargement).
@@ -165,6 +170,9 @@ Pièges récurrents :
 
 > Règle d'or : on ne livre **jamais** un chiffre sans l'avoir recoupé autrement.
 
+> **Ne jamais ajuster une requête pour obtenir le chiffre attendu** (ex. `FETCH FIRST 12` pour « trouver » 12 lignes). Le chiffre attendu sert à **vérifier**. S'il ne correspond pas, je cherche **pourquoi** : filtre manquant, jointure qui duplique, piège de date ou de NULL.
+> Erreur faite le 02/10/2026 sur l'exercice E1 : 91 clients coupés à 12, dont seulement 2 entreprises.
+
 ### Recouper = obtenir le même chiffre par un autre chemin
 
 Si deux calculs **indépendants** donnent le même résultat, le chiffre est fiable. S'ils diffèrent, il y a une erreur à trouver **avant** de livrer.
@@ -201,6 +209,15 @@ EOF'
 Réflexe face à une erreur `ORA-xxxxx` : lire le **code**, il dit presque toujours la cause (01017 = identifiants, 12541 = rien n'écoute sur le port, 00942 = table introuvable ou pas de droit).
 
 Un `.venv` ne se déplace pas et ne se commite pas : il se **recrée** à partir de `requirements.txt`.
+
+### TOAD vs SQL Developer
+
+- Oracle Database = le **moteur** (exécute). TOAD, SQL Developer, SQL*Plus = des **clients** (envoient le SQL).
+- Même requête = même résultat dans tous les clients. J'apprends le **SQL et Oracle**, pas un logiciel.
+- TOAD (Quest) est payant → pas installé dans le projet ; SQL Developer (Oracle) est gratuit → utilisé chez moi.
+- Au travail : vérifier que l'**autocommit est désactivé** dans TOAD (sinon un `UPDATE`/`DELETE` par erreur est validé immédiatement).
+- Raccourcis : SQL Developer Ctrl+Entrée / F5 ; TOAD généralement F9 (requête) / F5 (script) / Ctrl+E (plan).
+- Jamais d'exercice du projet sur la base de la banque.
 
 ### Le générateur (`data-generator/generate.py`)
 
@@ -257,6 +274,15 @@ SELECT * FROM account FETCH FIRST 10 ROWS ONLY;                     -- aperçu, 
 - 01/10/2026 — `ORA-01017` : utilisateur créé au 1er démarrage du volume avec un autre mot de passe ; réaligné par `ALTER USER`.
 - 01/10/2026 — Le générateur : graine fixe, `post()` = partie double, simulation jour par jour, transactions rejetées sans écriture.
 - 01/10/2026 — Requêtes de contrôle : invariants, méthode en 4 questions, 6 familles (absence, orphelin, cardinalité, deux sources, période, agrégat vs référence).
+- 02/10/2026 — Notion 1 (voir `oracle.md`) : ordre d'exécution, `AND` avant `OR`, `BETWEEN` perd le dernier jour (2 093 au lieu de 2 930), `<> 'MM01'` ignore les NULL.
+- 02/10/2026 — E1 : filtre « entreprises » oublié, et `FETCH FIRST 12` utilisé pour forcer le chiffre attendu. Leçon : le chiffre attendu sert à vérifier, pas à construire.
+- 02/10/2026 — E1 validé. Afficher des colonnes de contrôle pendant le développement, les retirer à la livraison. Style : mots-clés en MAJUSCULES, noms en minuscules.
+- 02/10/2026 — E2 : `BETWEEN DATE '2026-09-01' AND DATE '2026-09-30'` → 2 093 au lieu de 2 930 ; les 837 transactions du 30/09 perdues à cause de l'heure. Voir l'heure : `TO_CHAR(d, 'DD/MM/YYYY HH24:MI:SS')`. Pour compter : `COUNT(*)`, pas `SELECT *`.
+- 02/10/2026 — Le nombre de lignes affiché par SQL Developer (ex. 200) = la taille du **paquet chargé**, pas le nombre de résultats. Pour savoir combien : `COUNT(*)`.
+- 02/10/2026 — E3 : « en 2026 » traduit par sept.–oct. (4 lignes au lieu de 56). Reformuler la période en phrase avant de l'écrire. Intervalle semi-ouvert **toujours**, même si la colonne n'a pas d'heure. Vérifier les heures : `WHERE d <> TRUNC(d)`.
+- 02/10/2026 — E3 validé (56). E4 validé : `WHERE` s'exécute avant `SELECT`, donc inutile de retester les filtres dans le `CASE` ; `CASE col WHEN ...` (forme courte) ; `ELSE 'Autre'` pour rendre visibles les cas imprévus ; un nom de colonne dit ce qu'elle contient.
+- 02/10/2026 — E5 : `= NULL` ne renvoie rien, sans erreur. `COUNT(*)` sans `GROUP BY` → toujours 1 ligne (éventuellement 0) ; avec `GROUP BY` → aucune ligne s'il n'y a aucune catégorie. Une colonne du `GROUP BY` doit être affichée dans le `SELECT`.
+- 02/10/2026 — E5 validé, **notion 1 terminée**. Ne jamais déduire le sens d'une colonne de son nom (`created_at` = entrée en relation, pas date de création de l'entreprise). Vérifier l'inverse avant d'affirmer « NULL = entreprise ».
 
 
 Ce fichier est le contrôle technique de votre base. Ce sont 10 requêtes à lancer juste après chaque chargement, pour vérifier que les données sont cohérentes avant de faire la moindre analyse dessus.
