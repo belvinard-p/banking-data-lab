@@ -258,6 +258,13 @@ Un `.venv` ne se déplace pas et ne se commite pas : il se **recrée** à partir
 - Raccourcis : SQL Developer Ctrl+Entrée / F5 ; TOAD généralement F9 (requête) / F5 (script) / Ctrl+E (plan).
 - Jamais d'exercice du projet sur la base de la banque.
 
+### Héberger la base dans le cloud ?
+
+- **Render** : pas d'Oracle géré (seulement PostgreSQL) ; Oracle en Docker demande ≥ 2 Go de RAM + disque persistant (payant) ; un service web n'expose que du HTTP, donc pas de connexion directe au port 1521 depuis mon terminal. → Render servira **plus tard** pour l'**API** (niveau 8), pas pour la base.
+- **Oracle Cloud Free Tier** (« Always Free ») : Autonomous Database accessible depuis SQLcl / SQL Developer avec un *wallet*. Seule option simple et gratuite pour un Oracle en ligne (vérifier les quotas actuels).
+- Par défaut : la base reste **en local** (Docker) ; l'objectif du portfolio est qu'un tiers l'installe en moins de 15 minutes.
+- ⚠️ Ne jamais accéder au projet depuis le réseau de l'employeur.
+
 ### Le générateur (`data-generator/generate.py`)
 
 Il invente 33 mois de vie bancaire (01/01/2024 → 30/09/2026) en mémoire, puis recrée le schéma et charge Oracle.
