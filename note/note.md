@@ -1,7 +1,7 @@
 # Notes — ce que je dois retenir
 
 > Fiche de révision personnelle, complétée au fil du parcours. Une notion = un exemple concret.
-> Dernière mise à jour : 01/10/2026 (semaine 1, niveau 0).
+> Dernière mise à jour : 06/10/2026 (notions SQL 1 et 2 terminées, contrôle S06 écrit).
 
 ## 1. Le projet en une phrase
 
@@ -318,9 +318,18 @@ SELECT * FROM account FETCH FIRST 10 ROWS ONLY;                     -- aperçu, 
 - [x] Plan de formation lu
 - [x] Environnement préparé (Docker, schéma, générateur v0, outil `tools/db.py`)
 - [x] Oracle lancé et jeu « small » chargé (01/10/2026 : 62 424 transactions, 123 655 écritures)
+- [x] Notion SQL 1 — SELECT / WHERE / NULL / CASE (E1-E5, 02/10/2026)
+- [x] Notion SQL 2 — GROUP BY / HAVING / agrégats (E6-E11, 05/10/2026)
 - [ ] Requêtes de sanité S04 → S10 écrites
-- [ ] Journal de la semaine 1 rempli
-- [ ] Niveau 1 : exercices 1 à 20 (bloc A)
+  - [x] S06 — un seul titulaire PRIMARY par compte (06/10/2026)
+  - [ ] S07, S09 — notion 3 (JOIN)
+  - [ ] S04, S05 — notion 4 (EXISTS)
+  - [ ] S10 — notion 5 (CTE)
+  - [ ] S08 — notion 6 (fenêtrage)
+- [ ] Journal de la semaine 1 rempli (`docs/journal.md`)
+- [ ] Niveau 1 : exercices 1 à 20 (bloc A) du parcours
+- [ ] Notion 2 : fermer la branche (commit, push, PR vers `develop`)
+
 
 ## 9. Journal des notions apprises
 

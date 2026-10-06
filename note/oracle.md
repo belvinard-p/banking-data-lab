@@ -495,6 +495,31 @@ UPDATE account_holder SET role = 'JOINT' WHERE account_id = 1;   -- le compte 1 
 ROLLBACK;                                                        -- on annule
 ```
 
+**✅ Réalisé le 06/10/2026** — version finale dans `sanity_checks.sql` :
+
+```sql
+-- S06a — Chaque compte a exactement un titulaire PRIMARY (attendu : 0 ligne)
+SELECT   account_id,
+         COUNT(CASE WHEN role = 'PRIMARY' THEN 1 END) AS nb_primary
+FROM     account_holder
+GROUP BY account_id
+HAVING   COUNT(CASE WHEN role = 'PRIMARY' THEN 1 END) <> 1;
+
+-- S06b — Comptes sans aucun titulaire (attendu : 1 ligne avec 0)
+SELECT (SELECT COUNT(*)                   FROM account)
+     - (SELECT COUNT(DISTINCT account_id) FROM account_holder) AS nb_accounts_without_holder
+FROM   dual;
+```
+
+- Résultats : S06a → 0 ligne ; S06b → 0 (800 − 800).
+- Test de détection réussi : `UPDATE` du compte 1 en `JOINT` → S06a renvoie « compte 1, nb_primary = 0 » ; puis `ROLLBACK`.
+- Erreurs faites en chemin :
+  - `WHERE role <> 'PRIMARY'` supprime les lignes qu'on veut compter ;
+  - `GROUP BY role` au lieu de `GROUP BY account_id` ;
+  - compter `'JOINT'` sous un alias `nb_primary` → 761 fausses anomalies ;
+  - version « comptage » (1 ligne avec 0) au lieu de la version « liste » (0 ligne, et le numéro du compte fautif en cas d'anomalie).
+- Suite : S06b sera réécrit en notion 4 avec `NOT EXISTS` pour lister directement les comptes fautifs.
+
 ### 2.10 À retenir
 
 - Ordre d'exécution : `FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY`.
