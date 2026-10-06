@@ -39,7 +39,7 @@ Les jointures passent avant les sous-requêtes : c'est plus naturel, et `NOT EXI
 | # | Notion | Lu | Pratiqué | Contrôle écrit |
 | --- | --- | :---: | :---: | :---: |
 | 1 | SELECT / WHERE / NULL / CASE | ✅ | ✅ (E1-E5, 02/10) | — |
-| 2 | GROUP BY / HAVING | ✅ | ✅ (E6-E11, 05/10) | ☐ S06 |
+| 2 | GROUP BY / HAVING | ✅ | ✅ (E6-E11, 05/10) | ✅ S06 (06/10) |
 | 3 | JOIN | ☐ | ☐ | ☐ S07, S09 |
 | 4 | Sous-requêtes, EXISTS | ☐ | ☐ | ☐ S04, S05 |
 | 5 | CTE (WITH) | ☐ | ☐ | ☐ S10 |
@@ -457,6 +457,9 @@ Débit compté en `+`, crédit en `−`, par transaction. Si la transaction est 
 | `AVG` dépend de la population | découvert moyen : `AVG(overdraft_limit)` = **86 000** sur tous les comptes, mais **494 964** sur les seuls comptes qui ont un découvert | Définir **sur quelle population** on fait la moyenne |
 | `COUNT(*)` ≠ `COUNT(DISTINCT …)` | `ACCOUNT_HOLDER` : 847 lignes, mais 487 clients différents | `COUNT(DISTINCT customer_id)` pour compter des clients |
 | Un agrégat dans `WHERE` | `WHERE COUNT(*) > 3` → erreur | `HAVING` |
+| Filtrer dans `WHERE` ce qu'on veut **compter** | `WHERE role <> 'PRIMARY'` supprime les lignes PRIMARY : impossible ensuite de les compter, et un compte à 0 PRIMARY disparaît du résultat | Garder toutes les lignes et compter avec `COUNT(CASE WHEN role = 'PRIMARY' THEN 1 END)` |
+| Alias du `SELECT` dans `HAVING` | `HAVING nb_primary <> 1` : accepté en 23ai, **refusé en 19c** (le `SELECT` s'exécute après le `HAVING`) | Répéter l'expression complète dans le `HAVING` |
+| Inventaire au lieu de contrôle | 800 lignes « tout va bien » | Un contrôle ne renvoie **que les anomalies** : filtre `HAVING … <> 1` |
 | Colonne ni groupée ni agrégée | `ORA-00979` | Règle d'or 2.3 |
 | Croire que `GROUP BY` affiche les catégories vides | Agence 2 sans CORPORATE : pas de ligne à 0 | Le savoir ; on les fera apparaître avec `LEFT JOIN` (notion 3) |
 

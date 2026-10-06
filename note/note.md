@@ -107,6 +107,19 @@ CUSTOMER (1) ──< ACCOUNT_HOLDER >── (1) ACCOUNT
 - Conséquence : 847 lignes mais 487 clients différents → compter des clients = `COUNT(DISTINCT customer_id)`.
 - C'est aussi la source du **fan-out** : passer par cette table pour aller du client aux montants peut compter deux fois un compte joint.
 
+**Les rôles (`role`)** :
+
+| Valeur | En français | Sens | Nb |
+| --- | --- | --- | ---: |
+| `PRIMARY` | Titulaire principal | La personne à qui le compte appartient en premier lieu : relevés, KYC, rattachement dans les rapports | 800 |
+| `JOINT` | Cotitulaire | Possède aussi le compte (compte joint) | 39 |
+| `PROXY` | Mandataire | A une procuration : agit sur le compte sans en être propriétaire | 8 |
+
+- Analogie : locataire principal (bail), colocataire, personne avec procuration.
+- Règle (contrôle S06) : **exactement un** `PRIMARY` par compte. 0 → compte sans propriétaire identifié ; 2 → solde compté deux fois (fan-out).
+- Pour relier un compte à **un seul** client : filtrer `role = 'PRIMARY'`.
+- ⚠️ `'PRIMARY'` (valeur dans les données) ≠ `PRIMARY KEY` (contrainte qui identifie chaque ligne de façon unique, dans la structure de la table).
+
 ### Les trois dates d'une opération (`TXN`)
 
 | Colonne | Question | Nom en banque |
@@ -339,6 +352,9 @@ SELECT * FROM account FETCH FIRST 10 ROWS ONLY;                     -- aperçu, 
 - 05/10/2026 — E11 (2e essai) : `SUM('FEE')` additionne un texte → `ORA-01722` ; `amount_xof` remis dans le `GROUP BY` (même piège qu'E10). **Habitude à perdre : ajouter des colonnes quand ça ne marche pas.** Méthode : dessiner d'abord le tableau voulu ; `SELECT` = ses colonnes, `GROUP BY` = ses étiquettes, le montant seulement dans `SUM()`. `ORA-00979` = presque toujours une colonne **en trop** dans le `SELECT`.
 - 05/10/2026 — E11 (3e essai) : `amount_xof` toujours dans le `GROUP BY` → 12 lignes ; **`FETCH FIRST 3` ajouté pour obtenir les 3 lignes attendues** → 2026 affiché à 623 500 au lieu de 14 253 960 (moins de 5 % du vrai total). **Même erreur qu'E1** : un nombre de lignes inattendu est une **alarme**, pas un chiffre à corriger en coupant.
 - 05/10/2026 — E11 validé, **exercices de la notion 2 terminés**. Effet stock : les frais suivent le nombre de comptes ouverts (2024 : 6,95 M ; 2025 : 14,1 M ; 2026 : 14,25 M en 9 mois). Comparer des périodes égales.
+- 06/10/2026 — S06 : `WHERE role <> 'PRIMARY'` supprime les lignes qu'on veut compter ; `GROUP BY role` au lieu de `GROUP BY account_id` ; puis `COUNT(CASE WHEN role = 'JOINT' …)` avec un alias `nb_primary` → 761 « anomalies » qui n'en sont pas. **Un alias ne change pas le calcul** : le nom et le calcul doivent dire la même chose. Inventaire (800 lignes) ≠ contrôle (seulement les anomalies, `HAVING … <> 1`).
+- 06/10/2026 — S06 partie 1 **prouvée** : après `UPDATE account_holder SET role = 'JOINT' WHERE account_id = 1`, le contrôle renvoie « compte 1, nb_primary = 0 ». Vu depuis une autre session, la donnée n'avait pas changé → modification non validée (autocommit désactivé, lecture cohérente). Toujours finir par `ROLLBACK` : une modification en attente garde un **verrou** sur les lignes.
+- 06/10/2026 — S06b (comptes sans titulaire, méthode d'E9) = 0. **S06 terminé, notion 2 terminée.** Premier contrôle du projet dans `sanity_checks.sql`.
 
 
 Ce fichier est le contrôle technique de votre base. Ce sont 10 requêtes à lancer juste après chaque chargement, pour vérifier que les données sont cohérentes avant de faire la moindre analyse dessus.
