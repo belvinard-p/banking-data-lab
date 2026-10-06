@@ -39,7 +39,19 @@ WHERE  s.ledger_balance <> NVL(e.balance, 0);
 
 -- S05 — TODO : écritures dont la transaction n'existe pas (orphelins, attendu : 0)
 
--- S06 — TODO : comptes sans titulaire PRIMARY, ou avec plus d'un PRIMARY (attendu : 0)
+-- S06a — Chaque compte a exactement un titulaire PRIMARY (attendu : 0 ligne)
+--         Testé : UPDATE du compte 1 en JOINT → renvoie « compte 1, nb_primary = 0 » ; ROLLBACK.
+SELECT   account_id,
+         COUNT(CASE WHEN role = 'PRIMARY' THEN 1 END) AS nb_primary
+FROM     account_holder
+GROUP BY account_id
+HAVING   COUNT(CASE WHEN role = 'PRIMARY' THEN 1 END) <> 1;
+
+-- S06b — Comptes sans aucun titulaire, invisibles pour S06a (attendu : 1 ligne avec 0)
+--         À réécrire en notion 4 avec NOT EXISTS pour lister directement les comptes fautifs.
+SELECT (SELECT COUNT(*)                   FROM account)
+     - (SELECT COUNT(DISTINCT account_id) FROM account_holder) AS nb_accounts_without_holder
+FROM   dual;
 
 -- S07 — TODO : le statut actuel (ACCOUNT.status) = dernier statut de ACCOUNT_STATUS_HIST
 --        (celui dont valid_to IS NULL). Attendu : 0 écart.

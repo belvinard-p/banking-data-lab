@@ -93,6 +93,58 @@ Frais de 2 500 prélevés par erreur → une transaction inverse de 2 500 qui po
 
 Pas de solde photographié le week-end ni les jours fériés. « J-30 » = **dernier jour ouvré disponible** ≤ J-30.
 
+### Client ↔ compte : la table `ACCOUNT_HOLDER`
+
+`ACCOUNT` n'a **pas** de colonne client, `CUSTOMER` n'a pas de colonne compte. Le lien passe par `ACCOUNT_HOLDER` : une ligne = « tel client détient tel compte, avec tel rôle » (`PRIMARY`, `JOINT`, `PROXY`).
+
+```text
+CUSTOMER (1) ──< ACCOUNT_HOLDER >── (1) ACCOUNT
+```
+
+- Un client → plusieurs comptes (client 440, Moussa Dosso : 6 comptes, 3 PRIMARY + 3 JOINT).
+- Un compte → plusieurs titulaires (compte 1 : client 1 PRIMARY + client 95 JOINT = compte joint).
+- Relation **plusieurs-à-plusieurs** → table intermédiaire. Analogie : le registre des signatures.
+- Conséquence : 847 lignes mais 487 clients différents → compter des clients = `COUNT(DISTINCT customer_id)`.
+- C'est aussi la source du **fan-out** : passer par cette table pour aller du client aux montants peut compter deux fois un compte joint.
+
+**Les rôles (`role`)** :
+
+| Valeur | En français | Sens | Nb |
+| --- | --- | --- | ---: |
+| `PRIMARY` | Titulaire principal | La personne à qui le compte appartient en premier lieu : relevés, KYC, rattachement dans les rapports | 800 |
+| `JOINT` | Cotitulaire | Possède aussi le compte (compte joint) | 39 |
+| `PROXY` | Mandataire | A une procuration : agit sur le compte sans en être propriétaire | 8 |
+
+- Analogie : locataire principal (bail), colocataire, personne avec procuration.
+- Règle (contrôle S06) : **exactement un** `PRIMARY` par compte. 0 → compte sans propriétaire identifié ; 2 → solde compté deux fois (fan-out).
+- Pour relier un compte à **un seul** client : filtrer `role = 'PRIMARY'`.
+- ⚠️ `'PRIMARY'` (valeur dans les données) ≠ `PRIMARY KEY` (contrainte qui identifie chaque ligne de façon unique, dans la structure de la table).
+
+### Les trois dates d'une opération (`TXN`)
+
+| Colonne | Question | Nom en banque |
+| --- | --- | --- |
+| `txn_date` | Quand le client a-t-il agi ? (avec l'heure) | Date d'opération |
+| `business_date` | Dans quelle journée comptable la banque l'a-t-elle enregistrée ? | Date comptable |
+| `value_date` | À partir de quand l'argent compte-t-il pour les intérêts ? | Date de valeur |
+
+- Exemple réel : paiement carte n° 45, **samedi** 06/01/2024 16h11 → comptabilisé **lundi** 08/01/2024. 11 770 opérations (19 %) sont dans ce cas (week-ends, fériés).
+- Analogie : lettre postée samedi soir (opération), tamponnée lundi (comptable), chèque encaissé plus tard (valeur).
+- Choisir la date fait partie de la **définition** : activité client → `txn_date` ; comptabilité, frais, arrêté → `business_date` ; intérêts, solde en valeur → `value_date`.
+- ⚠️ Limite du lab : `value_date` = `business_date` partout (`generate.py`, ligne 364). À citer si on calcule des intérêts ou un solde en valeur.
+
+### Le segment = la catégorie commerciale du client
+
+| Segment | Signification | Type | Nb |
+| --- | --- | --- | ---: |
+| RETAIL | Particulier grand public, offres standard | PERSON | 378 |
+| PREMIUM | Particulier aisé, conseiller dédié | PERSON | 53 |
+| SME | PME (*Small and Medium Enterprises*) | COMPANY | 55 |
+| CORPORATE | Grande entreprise, chargé d'affaires dédié | COMPANY | 14 |
+
+- Sert à adapter offres, tarifs et suivi ; axe d'analyse très fréquent (`GROUP BY segment` : encours, commissions, attrition par segment).
+- ⚠️ Limite du lab : dans une vraie banque, le segment dépend de critères mesurables (revenus, patrimoine, chiffre d'affaires). Ici il est tiré **au hasard** (`generate.py`, lignes 185-191) → les PREMIUM ne sont pas forcément plus riches. À citer dans les limites d'une note de livraison.
+
 ## 3. Pièges Oracle
 
 | Piège | À retenir |
@@ -219,6 +271,13 @@ Un `.venv` ne se déplace pas et ne se commite pas : il se **recrée** à partir
 - Raccourcis : SQL Developer Ctrl+Entrée / F5 ; TOAD généralement F9 (requête) / F5 (script) / Ctrl+E (plan).
 - Jamais d'exercice du projet sur la base de la banque.
 
+### Héberger la base dans le cloud ?
+
+- **Render** : pas d'Oracle géré (seulement PostgreSQL) ; Oracle en Docker demande ≥ 2 Go de RAM + disque persistant (payant) ; un service web n'expose que du HTTP, donc pas de connexion directe au port 1521 depuis mon terminal. → Render servira **plus tard** pour l'**API** (niveau 8), pas pour la base.
+- **Oracle Cloud Free Tier** (« Always Free ») : Autonomous Database accessible depuis SQLcl / SQL Developer avec un *wallet*. Seule option simple et gratuite pour un Oracle en ligne (vérifier les quotas actuels).
+- Par défaut : la base reste **en local** (Docker) ; l'objectif du portfolio est qu'un tiers l'installe en moins de 15 minutes.
+- ⚠️ Ne jamais accéder au projet depuis le réseau de l'employeur.
+
 ### Le générateur (`data-generator/generate.py`)
 
 Il invente 33 mois de vie bancaire (01/01/2024 → 30/09/2026) en mémoire, puis recrée le schéma et charge Oracle.
@@ -283,6 +342,19 @@ SELECT * FROM account FETCH FIRST 10 ROWS ONLY;                     -- aperçu, 
 - 02/10/2026 — E3 validé (56). E4 validé : `WHERE` s'exécute avant `SELECT`, donc inutile de retester les filtres dans le `CASE` ; `CASE col WHEN ...` (forme courte) ; `ELSE 'Autre'` pour rendre visibles les cas imprévus ; un nom de colonne dit ce qu'elle contient.
 - 02/10/2026 — E5 : `= NULL` ne renvoie rien, sans erreur. `COUNT(*)` sans `GROUP BY` → toujours 1 ligne (éventuellement 0) ; avec `GROUP BY` → aucune ligne s'il n'y a aucune catégorie. Une colonne du `GROUP BY` doit être affichée dans le `SELECT`.
 - 02/10/2026 — E5 validé, **notion 1 terminée**. Ne jamais déduire le sens d'une colonne de son nom (`created_at` = entrée en relation, pas date de création de l'entreprise). Vérifier l'inverse avant d'affirmer « NULL = entreprise ».
+- 03/10/2026 — E6 validé. `HAVING COUNT(*) > 0` est toujours vrai (un paquet n'existe que s'il contient au moins une ligne) : chaque ligne d'une requête doit avoir une raison d'être. « Par type » : demander si on compte aussi les opérations rejetées.
+- 03/10/2026 — E7 validé. E8 : `'person'` / `'company'` en minuscules → 0 partout, sans erreur (valeurs stockées en MAJUSCULES). Réflexe : un comptage à 0 inattendu → `SELECT DISTINCT col FROM table` pour voir les vraies valeurs.
+- 03/10/2026 — E8 validé : agrégation conditionnelle, plusieurs indicateurs sur une ligne par agence. Ne jamais inventer d'explication métier à un écart (ex. 20,5 % d'entreprises à San-Pédro) sans l'avoir vérifiée : ici, c'est le hasard du générateur.
+- 03/10/2026 — E9 validé (13 clients sans compte). Erreur : `COUNT(DISTINCT account_id)` → 800, donc 500 − 800 = −300 : **un résultat impossible signale une erreur de logique**. Toujours se demander « qu'est-ce que je compte ? » (signatures vs personnes). `dual` = table d'une ligne pour un calcul isolé.
+- 05/10/2026 — E10 (1er essai) : `GROUP BY amount, txn_type, channel, status, branch_id` → 1 702 boîtes au lieu de 8 ; la moyenne d'une boîte de montants identiques = le montant lui-même. Le `GROUP BY` ne contient que ce qui suit « **par** » dans la question. Filtre « au guichet » oublié. `amount` mélange euros et XOF → utiliser `amount_xof` pour additionner ou comparer (agence 5 : 116 436 vs 127 870).
+- 05/10/2026 — E10 (2e essai) : deux `GROUP BY` dans une requête (interdit : chaque clause une seule fois, ordre fixe) ; colonne `branch` inexistante (`branch_id`). E10 validé. **WHERE ou HAVING ?** → « peut-on décider en regardant une seule ligne ? » Oui = `WHERE`, non (besoin de la boîte entière) = `HAVING`.
+- 05/10/2026 — E11 (1er essai) : `SUM(FEE)` → `ORA-00904`. `'FEE'` est une **valeur** (ce qui est écrit dans la rubrique `txn_type`), pas une **colonne**. Entre apostrophes = valeur ; sans apostrophes = colonne ; en cas de doute : `DESC txn`. Étiquette calculée `EXTRACT(YEAR FROM business_date)` : à mettre dans le `SELECT` **et** le `GROUP BY` (réussi).
+- 05/10/2026 — E11 (2e essai) : `SUM('FEE')` additionne un texte → `ORA-01722` ; `amount_xof` remis dans le `GROUP BY` (même piège qu'E10). **Habitude à perdre : ajouter des colonnes quand ça ne marche pas.** Méthode : dessiner d'abord le tableau voulu ; `SELECT` = ses colonnes, `GROUP BY` = ses étiquettes, le montant seulement dans `SUM()`. `ORA-00979` = presque toujours une colonne **en trop** dans le `SELECT`.
+- 05/10/2026 — E11 (3e essai) : `amount_xof` toujours dans le `GROUP BY` → 12 lignes ; **`FETCH FIRST 3` ajouté pour obtenir les 3 lignes attendues** → 2026 affiché à 623 500 au lieu de 14 253 960 (moins de 5 % du vrai total). **Même erreur qu'E1** : un nombre de lignes inattendu est une **alarme**, pas un chiffre à corriger en coupant.
+- 05/10/2026 — E11 validé, **exercices de la notion 2 terminés**. Effet stock : les frais suivent le nombre de comptes ouverts (2024 : 6,95 M ; 2025 : 14,1 M ; 2026 : 14,25 M en 9 mois). Comparer des périodes égales.
+- 06/10/2026 — S06 : `WHERE role <> 'PRIMARY'` supprime les lignes qu'on veut compter ; `GROUP BY role` au lieu de `GROUP BY account_id` ; puis `COUNT(CASE WHEN role = 'JOINT' …)` avec un alias `nb_primary` → 761 « anomalies » qui n'en sont pas. **Un alias ne change pas le calcul** : le nom et le calcul doivent dire la même chose. Inventaire (800 lignes) ≠ contrôle (seulement les anomalies, `HAVING … <> 1`).
+- 06/10/2026 — S06 partie 1 **prouvée** : après `UPDATE account_holder SET role = 'JOINT' WHERE account_id = 1`, le contrôle renvoie « compte 1, nb_primary = 0 ». Vu depuis une autre session, la donnée n'avait pas changé → modification non validée (autocommit désactivé, lecture cohérente). Toujours finir par `ROLLBACK` : une modification en attente garde un **verrou** sur les lignes.
+- 06/10/2026 — S06b (comptes sans titulaire, méthode d'E9) = 0. **S06 terminé, notion 2 terminée.** Premier contrôle du projet dans `sanity_checks.sql`.
 
 
 Ce fichier est le contrôle technique de votre base. Ce sont 10 requêtes à lancer juste après chaque chargement, pour vérifier que les données sont cohérentes avant de faire la moindre analyse dessus.
