@@ -271,6 +271,14 @@ Un `.venv` ne se déplace pas et ne se commite pas : il se **recrée** à partir
 - Raccourcis : SQL Developer Ctrl+Entrée / F5 ; TOAD généralement F9 (requête) / F5 (script) / Ctrl+E (plan).
 - Jamais d'exercice du projet sur la base de la banque.
 
+**Installer TOAD au travail :**
+- Ne rien télécharger soi-même sur un poste bancaire : demander la procédure validée (support informatique, installeur interne, licence de l'entreprise).
+- Il faut : TOAD for Oracle, souvent un **client Oracle** de même architecture (64 bits avec 64 bits), les paramètres de connexion (alias `tnsnames.ora`, ou hôte / port / service), un compte utilisateur.
+- Connexion en mode **Normal** (jamais SYSDBA).
+- Premier réglage : options → Oracle → Transactions → **« Commit after every statement » décoché**.
+- Questions à poser : base de **production ou de test** ? compte en **lecture seule** ? quel **schéma** ? **heures à éviter** ? quel client Oracle ?
+- En cas d'erreur, ne partager que le **code** (`ORA-12154`…), jamais un nom de serveur ou un identifiant.
+
 ### Héberger la base dans le cloud ?
 
 - **Render** : pas d'Oracle géré (seulement PostgreSQL) ; Oracle en Docker demande ≥ 2 Go de RAM + disque persistant (payant) ; un service web n'expose que du HTTP, donc pas de connexion directe au port 1521 depuis mon terminal. → Render servira **plus tard** pour l'**API** (niveau 8), pas pour la base.
@@ -355,6 +363,15 @@ SELECT * FROM account FETCH FIRST 10 ROWS ONLY;                     -- aperçu, 
 - 06/10/2026 — S06 : `WHERE role <> 'PRIMARY'` supprime les lignes qu'on veut compter ; `GROUP BY role` au lieu de `GROUP BY account_id` ; puis `COUNT(CASE WHEN role = 'JOINT' …)` avec un alias `nb_primary` → 761 « anomalies » qui n'en sont pas. **Un alias ne change pas le calcul** : le nom et le calcul doivent dire la même chose. Inventaire (800 lignes) ≠ contrôle (seulement les anomalies, `HAVING … <> 1`).
 - 06/10/2026 — S06 partie 1 **prouvée** : après `UPDATE account_holder SET role = 'JOINT' WHERE account_id = 1`, le contrôle renvoie « compte 1, nb_primary = 0 ». Vu depuis une autre session, la donnée n'avait pas changé → modification non validée (autocommit désactivé, lecture cohérente). Toujours finir par `ROLLBACK` : une modification en attente garde un **verrou** sur les lignes.
 - 06/10/2026 — S06b (comptes sans titulaire, méthode d'E9) = 0. **S06 terminé, notion 2 terminée.** Premier contrôle du projet dans `sanity_checks.sql`.
+- 12/10/2026 — E12 (notion 3) : première jointure réussie (`account` ↔ `product`). Oubli : « du plus grand au plus petit » demande `ORDER BY … DESC` (par défaut, le tri est croissant). Par prudence, regrouper par l'**identifiant** et le nom (`GROUP BY p.product_id, p.name`) : deux produits peuvent porter le même nom.
+- 12/10/2026 — E13 (1er essai) : `ah.role = 'JOINT'` au lieu de `'PRIMARY'` (2e fois, déjà à S06) → **39 lignes** au lieu de 800 : l'INNER JOIN a fait disparaître en silence les 761 comptes sans cotitulaire. **`JOIN` (mot-clé, relier deux tables) ≠ `'JOINT'` (valeur : cotitulaire)**. PRIMARY = premier = titulaire principal. Le nombre de lignes est mon alarme.
+- 12/10/2026 — E14 (1er essai), 5 erreurs : `b.branch` (la colonne est `name` → `DESC branch`) ; `ON b.branch_id = t.txn_id` (relier le **même renseignement** des deux côtés : `t.branch_id`) ; `DATE '30/09/2026'` (toujours `DATE 'AAAA-MM-JJ'`) ; période impossible (≥ 30/09 et < 31/08) → dire la période en phrase ; `GROUP BY b.branch_id` avec `b.name` affiché → `GROUP BY b.branch_id, b.name`. `ORDER BY … DESC` juste.
+- 12/10/2026 — E15 (1er essai) : `LEFT JOIN` dans le bon sens, mais sans `WHERE ah.customer_id IS NULL` → tous les clients ; et `GROUP BY customer_type, full_name` pour « enlever les doublons » → **373 lignes au lieu de 500** : 127 clients fusionnés avec un **homonyme** (102 noms partagés ; 5 clients différents s'appellent « Moussa Sangaré »). **Un nom n'identifie jamais une personne : c'est l'identifiant** (`customer_id`). `GROUP BY` sert à résumer, pas à dédoublonner.
+- 12/10/2026 — E16 (1er essai) : filtre de dates semi-ouvert spontané ✅, mais `ledger_balance` dans le `SELECT` et le `GROUP BY` → **693 lignes** au lieu d'une (3e fois : E10, E11). **Pas de « par » dans la question → pas de `GROUP BY`** : un agrégat seul résume toute la table en une ligne. Un montant ne va que dans `SUM()`.
+- 12/10/2026 — E16 partie (1) validée (694 lignes ; 2 153 269 830). Partie (2), 1er essai : `ON ah.account_holder_id = d.daily_balance` → colonnes **inventées** à partir du nom des tables (`ORA-00904`). Un nom de colonne ne se devine pas, il se **vérifie** : `DESC` des deux tables → repérer la colonne commune (ici `account_id`) → `ON`. Au travail : Schema Browser de TOAD.
+- 12/10/2026 — E16 partie (2) : `ON ah.account_id = d.account_id` → **740 lignes, 2 366 195 618** contre 694 / 2 153 269 830 : **+46 lignes, +212,9 millions (+10 %)**, sans aucune erreur. Fan-out = la photocopieuse : un compte à plusieurs titulaires voit son solde compté plusieurs fois. L'écart en **lignes** est l'alarme. Correction : `AND ah.role = 'PRIMARY'` dans le `ON`.
+- 14/10/2026 — E16 validé : ma phrase métier contient le chiffre, la cause sans mot technique et la conséquence. Finitions : toujours la **date d'arrêté** (« au 30/09/2026 ») et le bon terme (« total des soldes clients surévalué », pas « argent détenu », car le total inclut les soldes négatifs des prêts).
+- 14/10/2026 — E13, E14, E15 validés : **exercices de la notion 3 terminés**. Le bon nombre de lignes (800 comptes, 2 930 transactions, 13 clients) prouve qu'une jointure n'a rien perdu ni rien dupliqué. Reste : S07 et S09.
 
 
-Ce fichier est le contrôle technique de votre base. Ce sont 10 requêtes à lancer juste après chaque chargement, pour vérifier que les données sont cohérentes avant de faire la moindre analyse dessus.
+Ce fichier est le contrôle technique de ma base. Ce sont 10 requêtes à lancer juste après chaque chargement, pour vérifier que les données sont cohérentes avant de faire la moindre analyse dessus.

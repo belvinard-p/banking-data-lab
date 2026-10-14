@@ -40,7 +40,7 @@ Les jointures passent avant les sous-requêtes : c'est plus naturel, et `NOT EXI
 | --- | --- | :---: | :---: | :---: |
 | 1 | SELECT / WHERE / NULL / CASE | ✅ | ✅ (E1-E5, 02/10) | — |
 | 2 | GROUP BY / HAVING | ✅ | ✅ (E6-E11, 05/10) | ✅ S06 (06/10) |
-| 3 | JOIN | ☐ | ☐ | ☐ S07, S09 |
+| 3 | JOIN | ✅ | ✅ (E12-E16, 14/10) | ☐ S07, S09 |
 | 4 | Sous-requêtes, EXISTS | ☐ | ☐ | ☐ S04, S05 |
 | 5 | CTE (WITH) | ☐ | ☐ | ☐ S10 |
 | 6 | Fenêtrage | ☐ | ☐ | ☐ S08 |
@@ -242,9 +242,9 @@ ORDER  BY full_name;
 | # | Énoncé | Résultat attendu |
 | --- | --- | --- |
 | E1 | Les clients **entreprises** de l'agence **Plateau** (`branch_id = 1`), triés par nom. Afficher nom, segment, date de création. | 12 lignes — ✅ validé le 02/10 |
-| E2 | Le nombre de transactions de **septembre 2026** (colonne `txn_date`). | 2 930 (si vous trouvez 2 093 : relire 1.4) — ✅ validé le 02/10 |
+| E2 | Le nombre de transactions de **septembre 2026** (colonne `txn_date`). | 2 930 (si je trouve 2 093 : relire 1.4) — ✅ validé le 02/10 |
 | E3 | Les comptes **clôturés en 2026**, avec numéro, produit et date de clôture, du plus récent au plus ancien. | 56 lignes — ✅ validé le 02/10 |
-| E4 | Les transactions Mobile Money **rejetées**, avec une colonne `sens` qui vaut `'Wallet → compte'` pour un `DEPOSIT` et `'Compte → wallet'` pour un `WITHDRAWAL` (`CASE`). | À compter vous-même ; expliquer pourquoi un seul des deux sens apparaît (indice : `generate.py`, lignes 448-453) — ✅ validé le 02/10 : 580 rejets, tous « Compte → wallet » |
+| E4 | Les transactions Mobile Money **rejetées**, avec une colonne `sens` qui vaut `'Wallet → compte'` pour un `DEPOSIT` et `'Compte → wallet'` pour un `WITHDRAWAL` (`CASE`). | À compter moi-même ; expliquer pourquoi un seul des deux sens apparaît (indice : `generate.py`, lignes 448-453) — ✅ validé le 02/10 : 580 rejets, tous « Compte → wallet » |
 | E5 | Les clients **sans** date de naissance. Écrire d'abord la version fausse avec `= NULL`, puis la version juste. | 0, puis 69 — ✅ validé le 02/10 : 69 entreprises, aucun particulier sans date de naissance |
 
 ### 1.10 À retenir
@@ -472,9 +472,9 @@ Le piège `AVG` est un **piège de définition**, pas de SQL : « le découvert 
 | E6 | Nombre de transactions **par type** (`txn_type`), du plus fréquent au moins fréquent. | 9 lignes ; la première : `DEPOSIT`, 18 075 — ✅ validé le 03/10 (retirer le `HAVING COUNT(*) > 0` inutile) |
 | E7 | Les produits (`product_id`) qui ont **plus de 50 comptes**. | 4 lignes — ✅ validé le 03/10 (ajouter `ORDER BY` ; recoupement 722 + 78 = 800) |
 | E8 | Pour chaque agence, **sur une seule ligne** : le nombre de clients et le nombre d'**entreprises**. | 8 lignes ; agence 1 : 91 clients dont 12 entreprises (recoupe E1) — ✅ validé le 03/10 (après correction de la casse `'COMPANY'`) |
-| E9 | Combien de clients **n'ont aucun compte** ? Sans jointure : comparez le nombre de clients de `CUSTOMER` avec le nombre de clients **différents** de `ACCOUNT_HOLDER`. | 13 — ✅ validé le 03/10 (500 − 487). En une requête : `SELECT (SELECT COUNT(*) FROM customer) - (SELECT COUNT(DISTINCT customer_id) FROM account_holder) FROM dual;` |
+| E9 | Combien de clients **n'ont aucun compte** ? Sans jointure : je compare le nombre de clients de `CUSTOMER` avec le nombre de clients **différents** de `ACCOUNT_HOLDER`. | 13 — ✅ validé le 03/10 (500 − 487). En une requête : `SELECT (SELECT COUNT(*) FROM customer) - (SELECT COUNT(DISTINCT customer_id) FROM account_holder) FROM dual;` |
 | E10 | Les agences dont le **retrait moyen au guichet** dépasse **130 000 XOF** (`txn_type = 'WITHDRAWAL'`, `channel = 'BRANCH'`, `status = 'POSTED'`). Quelles conditions vont dans `WHERE`, laquelle dans `HAVING` ? | 3 agences — ✅ validé le 05/10 (agences 2, 3, 8). Test : « peut-on décider en regardant **un seul** retrait ? » Oui → `WHERE` ; non (moyenne de l'agence) → `HAVING` |
-| E11 | Le montant total des **frais** (`txn_type = 'FEE'`, postés) **par année**. Indice : `EXTRACT(YEAR FROM business_date)`. Expliquez pourquoi 2024 est deux fois plus faible que 2025. | 3 lignes ; 2026 : 14 253 960 XOF — ✅ validé le 05/10 (2024 : 6 950 080 ; 2025 : 14 095 700). Effet stock : les frais dépendent du nombre de comptes ouverts, qui part de 0 en janvier 2024 ; 2026 dépasse 2025 en 9 mois seulement |
+| E11 | Le montant total des **frais** (`txn_type = 'FEE'`, postés) **par année**. Indice : `EXTRACT(YEAR FROM business_date)`. J'explique pourquoi 2024 est deux fois plus faible que 2025. | 3 lignes ; 2026 : 14 253 960 XOF — ✅ validé le 05/10 (2024 : 6 950 080 ; 2025 : 14 095 700). Effet stock : les frais dépendent du nombre de comptes ouverts, qui part de 0 en janvier 2024 ; 2026 dépasse 2025 en 9 mois seulement |
 
 ### 2.9 Le contrôle du projet : S06
 
@@ -483,7 +483,7 @@ Le piège `AVG` est un **piège de définition**, pas de SQL : « le découvert 
 À écrire dans `sql/00_sanity/sanity_checks.sql`, sous le `TODO` de S06, en deux parties :
 
 1. **Les comptes qui ont 0 ou plusieurs `PRIMARY` parmi leurs titulaires.** Partir de `ACCOUNT_HOLDER`, un paquet par compte, et compter seulement les `PRIMARY` (agrégation conditionnelle, 2.6). Garder les paquets où ce compte est différent de 1. Attendu : 0 ligne.
-2. **Les comptes qui n'ont aucun titulaire du tout.** Ils n'ont aucune ligne dans `ACCOUNT_HOLDER`, donc la partie 1 ne peut pas les voir. Avec ce que vous savez déjà : comparez le nombre de comptes de `ACCOUNT` avec le nombre de comptes **différents** de `ACCOUNT_HOLDER`. Attendu : les deux chiffres sont égaux (800).
+2. **Les comptes qui n'ont aucun titulaire du tout.** Ils n'ont aucune ligne dans `ACCOUNT_HOLDER`, donc la partie 1 ne peut pas les voir. Avec ce que je sais déjà : je compare le nombre de comptes de `ACCOUNT` avec le nombre de comptes **différents** de `ACCOUNT_HOLDER`. Attendu : les deux chiffres sont égaux (800).
 
 À la notion 3, on réécrira S06 en **une seule requête** avec un `LEFT JOIN`, qui donnera directement le numéro des comptes fautifs.
 
@@ -508,10 +508,215 @@ ROLLBACK;                                                        -- on annule
   - *Analogie du formulaire* : le directeur remet un formulaire imprimé. Les **en-têtes de colonnes** (« Année », « Total des frais ») = le `SELECT` ; les **en-têtes de lignes** (2024, 2025, 2026) = le `GROUP BY`. Une case ne contient qu'une valeur : impossible d'y écrire « le montant de 2024 » (2 414 prélèvements) → soit on découpe la ligne (montant ajouté au `GROUP BY`), soit Oracle refuse (`ORA-00979`).
   - *Analogie du classement* : une ligne par équipe (étiquette), « matchs joués » et « points » (résumés). On n'ajoute pas « score du match » : c'est un détail d'un match, pas une information sur l'équipe.
 - `'FEE'` (entre apostrophes) est une **valeur** ; `amount_xof` (sans apostrophes) est une **colonne**. On somme une colonne, jamais une valeur.
+- **Le mot « par » décide du `GROUP BY`** : « total **par** année » → `GROUP BY` l'année ; « **le** total » (sans « par ») → **pas de `GROUP BY`**, une seule ligne. Un montant n'est **jamais** une étiquette : il ne va que dans `SUM()` / `AVG()`. (Piège refait 3 fois : E10, E11, E16.)
 
 ## Notion 3 — JOIN (INNER, LEFT)
 
-*À compléter.*
+> La notion la plus utile au travail : dans une vraie base bancaire, l'information est **éparpillée** dans des dizaines de tables. Presque chaque requête en relie plusieurs.
+
+### 3.1 Le problème : l'information est rangée dans plusieurs classeurs
+
+À E3 et E7, j'ai affiché `product_id` : 1, 4, 2… Un responsable ne sait pas ce qu'est « le produit 6 ». Le **nom** du produit est rangé **ailleurs**, dans la table `PRODUCT`.
+
+**L'image : deux classeurs reliés par un numéro.**
+
+```text
+Classeur ACCOUNT (les comptes)              Classeur PRODUCT (le catalogue)
+┌───────────────┬────────────┐              ┌────────────┬──────────────────────────────┐
+│ account_number│ product_id │              │ product_id │ name                         │
+├───────────────┼────────────┤              ├────────────┼──────────────────────────────┤
+│ 002-040007    │     1  ────┼──────────────►     1      │ Compte courant particulier   │
+│ 002-040014    │     5  ────┼──────────────►     5      │ Dépôt à terme 12 mois        │
+└───────────────┴────────────┘              └────────────┴──────────────────────────────┘
+```
+
+Sur chaque fiche compte, il y a un **numéro de produit**. Pour trouver le nom, on va dans le catalogue chercher **la fiche qui porte le même numéro**. C'est ça, une **jointure** : rapprocher deux tables grâce à une colonne commune.
+
+### 3.2 La syntaxe : JOIN … ON …
+
+```sql
+SELECT a.account_number, a.product_id, p.name AS product_name
+FROM   account a
+JOIN   product p ON p.product_id = a.product_id
+ORDER  BY a.account_id
+FETCH  FIRST 3 ROWS ONLY;
+```
+
+| ACCOUNT_NUMBER | PRODUCT_ID | PRODUCT_NAME |
+| --- | ---: | --- |
+| 002-040007 | 1 | Compte courant particulier |
+| 004-040007 | 1 | Compte courant particulier |
+| 002-040014 | 5 | Dépôt à terme 12 mois |
+
+Mot à mot :
+
+| Morceau | Sens |
+| --- | --- |
+| `FROM account a` | je pars du classeur des comptes, que j'appelle **`a`** (un surnom, ou **alias**) |
+| `JOIN product p` | je l'attache au catalogue des produits, que j'appelle **`p`** |
+| `ON p.product_id = a.product_id` | **la règle de rapprochement** : « le numéro de produit du catalogue = le numéro de produit du compte » |
+| `a.account_number` | la colonne `account_number` **du classeur `a`** |
+
+**Pourquoi les alias `a.` et `p.` ?** Les deux tables ont une colonne `product_id`. Sans préciser laquelle, Oracle refuse : `ORA-00918: column ambiguously defined`. Règle : dès qu'il y a une jointure, **préfixer toutes les colonnes** par l'alias de leur table.
+
+### 3.3 Joindre puis regrouper : E7 avec le nom des produits
+
+```sql
+SELECT   p.name, COUNT(*) AS nb_accounts
+FROM     account a
+JOIN     product p ON p.product_id = a.product_id
+GROUP BY p.name
+ORDER BY nb_accounts DESC;
+```
+
+| NAME | NB_ACCOUNTS |
+| --- | ---: |
+| Compte courant particulier | 390 |
+| Épargne 3,5 % | 163 |
+| Compte courant professionnel | 93 |
+| Prêt consommation | 76 |
+| Dépôt à terme 12 mois | 37 |
+| Prêt automobile | 25 |
+| Compte courant en euros | 16 |
+
+Ordre d'exécution : la jointure fait partie du `FROM`, donc elle a lieu **en premier**. On attache les classeurs, **puis** on filtre, **puis** on range dans les boîtes.
+
+```text
+1. FROM + JOIN   → j'attache les classeurs
+2. WHERE         → je garde certaines lignes
+3. GROUP BY      → je fais les boîtes
+4. HAVING        → je garde certaines boîtes
+5. SELECT        → j'écris les colonnes
+6. ORDER BY      → je trie
+```
+
+### 3.4 Plusieurs jointures à la suite : la chaîne
+
+Pour afficher **le nom du client** d'un compte, il faut passer par le registre des signatures (`ACCOUNT_HOLDER`), car `ACCOUNT` n'a pas de colonne client.
+
+```text
+ACCOUNT ──► ACCOUNT_HOLDER ──► CUSTOMER          (qui est le titulaire ?)
+   └──────► BRANCH                               (quelle agence ?)
+```
+
+```sql
+SELECT a.account_number, c.full_name, b.name AS branch_name
+FROM   account a
+JOIN   account_holder ah ON ah.account_id  = a.account_id
+                        AND ah.role        = 'PRIMARY'
+JOIN   customer c        ON c.customer_id  = ah.customer_id
+JOIN   branch b          ON b.branch_id    = a.branch_id
+ORDER  BY a.account_id
+FETCH  FIRST 3 ROWS ONLY;
+```
+
+| ACCOUNT_NUMBER | FULL_NAME | BRANCH_NAME |
+| --- | --- | --- |
+| 002-040007 | Lassina Brou | Cocody |
+| 004-040007 | Bakary Cissé | Marcory |
+| 002-040014 | Ets Tano & Fils | Cocody |
+
+Chaque `JOIN` attache **un classeur de plus**, avec **sa propre règle** `ON`. Le `AND ah.role = 'PRIMARY'` garantit **un seul** titulaire par compte : sans lui, un compte joint apparaîtrait deux fois (voir 3.6).
+
+### 3.5 INNER JOIN ou LEFT JOIN ?
+
+`JOIN` tout court = **`INNER JOIN`** : on ne garde que les lignes qui ont **trouvé un partenaire** de l'autre côté.
+
+**L'image : la soirée dansante.** On forme des couples client ↔ compte.
+- **INNER JOIN** : on ne prend la photo **que des couples formés**. Celui qui danse seul **n'est pas sur la photo**.
+- **LEFT JOIN** : on prend la photo de **tous les invités de gauche**. Celui qui n'a pas de partenaire est **quand même sur la photo**, avec une place vide (NULL) à côté de lui.
+
+| | Lignes | Pourquoi |
+| --- | ---: | --- |
+| `customer c JOIN account_holder ah` | **847** | uniquement les clients qui ont au moins une signature |
+| `customer c LEFT JOIN account_holder ah` | **860** | les 847 + les **13 clients sans compte**, avec des NULL à droite |
+
+Recoupement : 860 − 847 = **13**, exactement le résultat d'E9.
+
+**Retrouver ceux qui n'ont pas de partenaire** : `LEFT JOIN` puis garder les lignes où le côté droit est vide.
+
+```sql
+SELECT c.customer_id, c.full_name
+FROM   customer c
+LEFT   JOIN account_holder ah ON ah.customer_id = c.customer_id
+WHERE  ah.customer_id IS NULL;
+```
+
+→ **13 clients**, cette fois **avec leur nom** (E9 ne donnait que le nombre). Par exemple : Drissa Tano, Seydou Traoré… et une seule entreprise, Boulangerie Ouattara.
+
+Règle : **la table « de gauche »** est celle écrite **avant** `LEFT JOIN` ; c'est elle dont on garde **toutes** les lignes. On met donc à gauche la table dont on ne veut perdre personne.
+
+### 3.6 Le piège n° 1 : le fan-out (la jointure qui multiplie)
+
+Total des soldes au 30/09/2026 :
+
+| Requête | Lignes | Total |
+| --- | ---: | ---: |
+| `DAILY_BALANCE` seule | 694 | **2 153 269 830** |
+| `DAILY_BALANCE` jointe à **tous** les titulaires | 740 | **2 366 195 618** |
+| `DAILY_BALANCE` jointe aux seuls `PRIMARY` | 694 | 2 153 269 830 ✅ |
+
+La deuxième requête affiche **213 millions de trop** (+ 10 %), **sans aucune erreur**.
+
+Pourquoi : un compte joint a 2 lignes dans le registre (PRIMARY + JOINT). La jointure **colle le solde du compte à chacune des deux lignes** : le solde est compté **deux fois**.
+
+**L'image : la photocopieuse.** Une jointure vers une table qui a **plusieurs** partenaires pour une même ligne **photocopie** cette ligne autant de fois. Si on additionne ensuite les photocopies, le total gonfle.
+
+Parades :
+1. **Avant** chaque jointure, se demander : « pour une ligne de gauche, combien de partenaires à droite ? 0, 1, ou **plusieurs** ? »
+2. Si plusieurs : réduire à un seul (ici `role = 'PRIMARY'`), ou **pré-agréger** avant de joindre (notion 5).
+3. **Recouper** : compter les lignes avant et après la jointure (694 → 740 = alarme), et comparer le total à celui de la table seule.
+
+### 3.7 Pièges
+
+| Piège | Exemple réel | Parade |
+| --- | --- | --- |
+| Oublier la règle `ON` | `FROM customer, account` sans condition → **400 000** lignes (500 × 800) : chaque client marié à chaque compte | Toujours une condition de rapprochement par jointure |
+| Colonne sans alias | `SELECT product_id …` avec deux tables qui l'ont → `ORA-00918` | Préfixer **toutes** les colonnes (`a.`, `p.`) |
+| `LEFT JOIN` annulé par le `WHERE` | `LEFT JOIN account_holder ah … WHERE ah.role = 'PRIMARY'` → **800** lignes : les clients sans partenaire (role NULL) sont éliminés, le `LEFT` redevient un `INNER` | Mettre la condition sur la table de droite **dans le `ON`** : `… ON ah.customer_id = c.customer_id AND ah.role = 'PRIMARY'` → **818** lignes, dont 18 clients sans compte PRIMARY (13 sans compte + 5 seulement cotitulaires ou mandataires) |
+| Fan-out | +213 millions au 30/09 (3.6) | Vérifier la cardinalité, compter les lignes avant/après |
+| `INNER` qui perd des lignes en silence | Un compte sans titulaire disparaît d'un `JOIN` | `LEFT JOIN` quand on ne veut perdre personne |
+
+### 3.8 Exercices
+
+| # | Énoncé | Résultat attendu |
+| --- | --- | --- |
+| E12 | Le nombre de comptes **par nom de produit**, du plus grand au plus petit. (Je le refais **sans regarder** 3.3.) | 7 lignes ; « Compte courant particulier » : 390 — ✅ validé le 12/10 (j'avais oublié `DESC` : `ORDER BY` trie par défaut du plus petit au plus grand ; regrouper par `p.product_id, p.name` par prudence) |
+| E13 | Pour chaque compte : son numéro, le **nom du titulaire principal** et le **nom de l'agence**. Combien de lignes ? Pourquoi ce nombre est-il rassurant ? | 800 lignes ; le compte 002-040014 appartient à « Ets Tano & Fils » (Cocody) — ✅ validé le 14/10 (1er essai avec `'JOINT'` : 39 lignes). 800 = nombre de comptes : aucun compte **perdu** (INNER) ni **photocopié** (fan-out), une ligne par compte |
+| E14 | Le nombre de transactions de **septembre 2026** (`txn_date`) par **nom d'agence**, de la plus active à la moins active. Je recoupe le total avec E2. | 8 lignes ; Plateau en tête avec 558 ; total 2 930 — ✅ validé le 14/10 (recoupement 558 + 496 + 403 + 400 + 327 + 275 + 269 + 202 = 2 930 ; préférer `GROUP BY b.branch_id, b.name`) |
+| E15 | La **liste** des clients sans aucun compte, avec leur nom et leur type (`LEFT JOIN`). Je recoupe avec E9. | 13 lignes, dont 1 entreprise — ✅ validé le 14/10 (afficher aussi `c.customer_id` à cause des homonymes) |
+| E16 | Le **piège du fan-out** : je calcule le total des soldes (`ledger_balance`) au 30/09/2026 (1) depuis `DAILY_BALANCE` seule, (2) en joignant `ACCOUNT_HOLDER` **sans** filtre de rôle. Je compte aussi les lignes. J'explique l'écart en une phrase métier. | 694 lignes / 2 153 269 830 contre 740 lignes / 2 366 195 618 — ✅ validé le 14/10. Ma phrase métier : « Au 30/09/2026, le total des soldes clients affiché est de 2 366 195 618 XOF alors que le total réel est de 2 153 269 830 XOF, soit un écart de 212 925 789 XOF (+10 %). Cet écart vient du fait que certains comptes appartiennent à plusieurs personnes et ont donc été comptés plusieurs fois. Si ce chiffre partait dans un rapport, la direction croirait que les soldes clients sont supérieurs de 213 millions à la réalité. » |
+
+### 3.9 Les contrôles du projet : S07 et S09
+
+**S07 — Le statut actuel = le dernier statut de l'historique.** Famille : **deux sources**.
+- Règle : pour chaque compte, `ACCOUNT.status` doit être égal au statut de la période **en cours** dans `ACCOUNT_STATUS_HIST` (celle où `valid_to IS NULL`).
+- Pistes :
+  - Partir de `ACCOUNT` (on ne veut perdre **aucun** compte) → quel type de jointure ?
+  - La condition « période en cours » porte sur la table de droite → où la mettre (3.7) ?
+  - Deux sortes d'anomalies : le compte n'a **pas** de période en cours (côté droit vide), **ou** les deux statuts **diffèrent**.
+- Attendu : **0 ligne**.
+
+**S09 — Aucune écriture après la clôture d'un compte.** Famille : **cohérence temporelle**.
+- Règle : un compte clôturé (`close_date` renseignée) ne doit avoir **aucune** écriture (`GL_ENTRY.entry_date`) **après** sa date de clôture.
+- Pistes : joindre `GL_ENTRY` et `ACCOUNT`, puis comparer les deux dates.
+- **La question à me poser** : `>` ou `>=` ? J'essaie les deux. Avec l'un, je trouverai **0**, avec l'autre **140**. Lequel est le bon contrôle, et pourquoi ? (Indice : que fait le générateur **le jour même** de la clôture ? `generate.py`, fonction `planned`, cas `"close"`.)
+- Attendu : **0 ligne**.
+
+**Bonus — S06 en une seule requête.** Comme prévu à la notion 2 : réécrire S06 en partant de `ACCOUNT` avec un `LEFT JOIN` vers `ACCOUNT_HOLDER`, pour attraper **en une fois** les comptes à 0 PRIMARY, à 2 PRIMARY **et** sans aucun titulaire.
+
+Prouver chaque contrôle avec un `UPDATE` suivi d'un `ROLLBACK`, comme pour S06.
+
+### 3.10 À retenir
+
+- Une jointure **rapproche deux tables** grâce à une colonne commune : `JOIN table alias ON règle`.
+- Avec une jointure, **préfixer toutes les colonnes** par l'alias de leur table.
+- `JOIN` (INNER) = seulement les couples formés ; `LEFT JOIN` = **tous** ceux de gauche, avec NULL quand il n'y a pas de partenaire.
+- « A sans B » = `LEFT JOIN … WHERE b.colonne IS NULL`.
+- Une condition sur la table de droite d'un `LEFT JOIN` va **dans le `ON`**, pas dans le `WHERE`.
+- **Avant chaque jointure** : « combien de partenaires pour une ligne ? » Plusieurs → risque de **fan-out** (+213 millions au 30/09).
+- Recouper : nombre de lignes et total **avant / après** la jointure.
+- **Écrire une règle `ON` en 3 étapes** : (1) `DESC` des deux tables ; (2) repérer la colonne qui porte **le même renseignement** (souvent le même nom, souvent en `_id`) ; (3) `ON a.colonne = b.colonne`. Un nom de colonne ne se **devine** jamais (E14 : `t.txn_id` au lieu de `t.branch_id` ; E16 : `account_holder_id` inventé).
 
 ## Notion 4 — Sous-requêtes, EXISTS / NOT EXISTS
 
