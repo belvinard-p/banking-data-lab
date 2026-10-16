@@ -9,6 +9,9 @@ Parcours_*.pdf
 # Brouillons de posts LinkedIn : personnels, ne jamais publier
 post_linkeding/
 
+# Fichiers SQL temporaires
+Untitled-*.sql
+
 # Python
 __pycache__/
 *.pyc

@@ -1,4 +1,35 @@
 services:
+  pg-primary:
+    image: postgres:16
+    container_name: banking-pg-primary
+    environment:
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-secret}
+      POSTGRES_USER: cbs_lab
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_primary_data:/var/lib/postgresql/data
+      - pg_archive:/archive
+    command: >
+      postgres
+      -c wal_level=replica
+      -c archive_mode=on
+      -c archive_command='cp %p /archive/%f'
+      -c max_wal_senders=3
+      -c wal_keep_size=64
+
+  pg-standby:
+    image: postgres:16
+    container_name: banking-pg-standby
+    environment:
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-secret}
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg_standby_data:/var/lib/postgresql/data
+    depends_on:
+      - pg-primary
+
   oracle:
     image: gvenzl/oracle-free:23-slim-faststart
     container_name: banking-oracle
@@ -19,3 +50,6 @@ services:
 
 volumes:
   oracle-data:
+  pg_primary_data:
+  pg_standby_data:
+  pg_archive:
