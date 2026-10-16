@@ -53,12 +53,27 @@ SELECT (SELECT COUNT(*)                   FROM account)
      - (SELECT COUNT(DISTINCT account_id) FROM account_holder) AS nb_accounts_without_holder
 FROM   dual;
 
--- S07 — TODO : le statut actuel (ACCOUNT.status) = dernier statut de ACCOUNT_STATUS_HIST
---        (celui dont valid_to IS NULL). Attendu : 0 écart.
+-- S07 — Le statut actuel (ACCOUNT.status) = le statut de la période en cours de
+--        ACCOUNT_STATUS_HIST (valid_to IS NULL), et chaque compte a une période en cours (attendu : 0 ligne)
+--        Testé : UPDATE du compte 1 en CLOSED → renvoie « compte 1, CLOSED / ACTIVE » ; ROLLBACK.
+SELECT a.account_id,
+       a.status AS statut_account,
+       h.status AS statut_historique
+FROM   account a
+LEFT   JOIN account_status_hist h ON h.account_id = a.account_id
+                                 AND h.valid_to   IS NULL
+WHERE  (a.status <> h.status OR h.account_id IS NULL);
 
 -- S08 — TODO : périodes de statut qui se chevauchent pour un même compte (attendu : 0)
 --        Indice : LEAD(valid_from) OVER (PARTITION BY account_id ORDER BY valid_from)
 
--- S09 — TODO : écritures sur un compte après sa date de clôture (attendu : 0 en v0)
+-- S09 — Aucune écriture après la date de clôture d'un compte (attendu : 0 ligne en v0)
+--        « > » et non « >= » : le jour même de la clôture, l'écriture qui solde le compte est normale (140 cas).
+--        Testé : close_date du compte 5 avancée de 30 jours → renvoie 4 écritures ; ROLLBACK.
+SELECT e.entry_id, e.account_id, e.entry_date, a.close_date
+FROM   gl_entry e
+JOIN   account a ON a.account_id = e.account_id
+WHERE  a.close_date IS NOT NULL
+AND    e.entry_date > a.close_date;
 
 -- S10 — TODO : pour chaque prêt, somme des principal_due = principal (attendu : 0 écart)

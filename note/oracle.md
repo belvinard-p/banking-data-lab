@@ -40,7 +40,7 @@ Les jointures passent avant les sous-requêtes : c'est plus naturel, et `NOT EXI
 | --- | --- | :---: | :---: | :---: |
 | 1 | SELECT / WHERE / NULL / CASE | ✅ | ✅ (E1-E5, 02/10) | — |
 | 2 | GROUP BY / HAVING | ✅ | ✅ (E6-E11, 05/10) | ✅ S06 (06/10) |
-| 3 | JOIN | ✅ | ✅ (E12-E16, 14/10) | ☐ S07, S09 |
+| 3 | JOIN | ✅ | ✅ (E12-E16, 14/10) | ✅ S07, S09 (16/10) |
 | 4 | Sous-requêtes, EXISTS | ☐ | ☐ | ☐ S04, S05 |
 | 5 | CTE (WITH) | ☐ | ☐ | ☐ S10 |
 | 6 | Fenêtrage | ☐ | ☐ | ☐ S08 |
@@ -706,6 +706,37 @@ Parades :
 **Bonus — S06 en une seule requête.** Comme prévu à la notion 2 : réécrire S06 en partant de `ACCOUNT` avec un `LEFT JOIN` vers `ACCOUNT_HOLDER`, pour attraper **en une fois** les comptes à 0 PRIMARY, à 2 PRIMARY **et** sans aucun titulaire.
 
 Prouver chaque contrôle avec un `UPDATE` suivi d'un `ROLLBACK`, comme pour S06.
+
+**✅ Réalisé le 16/10/2026** — version finale dans `sanity_checks.sql` :
+
+```sql
+-- S07 — Statut actuel = statut de la période en cours de l'historique (attendu : 0 ligne)
+SELECT a.account_id,
+       a.status AS statut_account,
+       h.status AS statut_historique
+FROM   account a
+LEFT   JOIN account_status_hist h ON h.account_id = a.account_id
+                                 AND h.valid_to   IS NULL
+WHERE  (a.status <> h.status OR h.account_id IS NULL);
+
+-- S09 — Aucune écriture après la date de clôture (attendu : 0 ligne)
+SELECT e.entry_id, e.account_id, e.entry_date, a.close_date
+FROM   gl_entry e
+JOIN   account a ON a.account_id = e.account_id
+WHERE  a.close_date IS NOT NULL
+AND    e.entry_date > a.close_date;
+```
+
+- Résultats : S07 → 0 ligne ; S09 → 0 ligne.
+- Tests de détection réussis (dans **une seule session**, script lancé avec F5) :
+  - S07 : compte 1 passé en `CLOSED` → 1 ligne (CLOSED / ACTIVE) ; `ROLLBACK` → 0 ligne.
+  - S09 : `close_date` du compte 5 avancée de 30 jours → 4 écritures ; `ROLLBACK` → 0 ligne.
+- Ce que j'ai appris :
+  - S07 : la condition « période en cours » va **dans le `ON`** du `LEFT JOIN` ; `OR h.account_id IS NULL` attrape les comptes sans période en cours (sinon `a.status <> NULL` les éliminerait en silence) ; parenthèses autour du `OR`.
+  - S09 : `>` et non `>=`. Les 140 écritures du **jour même** de la clôture sont normales (le compte est soldé). Un détecteur qui sonne pour rien finit ignoré.
+  - Contrôle = **le détecteur de fumée** (`SELECT`, reste dans le fichier) ; test = **l'allumette** (`UPDATE` puis `ROLLBACK`).
+  - Mon premier test de S09 n'a rien détecté : contrôle lancé dans **une autre session** (SQL Developer et VS Code = deux connexions). Une modification non validée n'est visible que dans sa propre session.
+- Reste en bonus : S06 en une seule requête avec `LEFT JOIN`.
 
 ### 3.10 À retenir
 

@@ -1,7 +1,7 @@
 # Notes — ce que je dois retenir
 
 > Fiche de révision personnelle, complétée au fil du parcours. Une notion = un exemple concret.
-> Dernière mise à jour : 01/10/2026 (semaine 1, niveau 0).
+> Dernière mise à jour : 16/10/2026 (notions SQL 1, 2 et 3 terminées ; contrôles S06, S07 et S09 écrits).
 
 ## 1. Le projet en une phrase
 
@@ -326,9 +326,19 @@ SELECT * FROM account FETCH FIRST 10 ROWS ONLY;                     -- aperçu, 
 - [x] Plan de formation lu
 - [x] Environnement préparé (Docker, schéma, générateur v0, outil `tools/db.py`)
 - [x] Oracle lancé et jeu « small » chargé (01/10/2026 : 62 424 transactions, 123 655 écritures)
+- [x] Notion SQL 1 — SELECT / WHERE / NULL / CASE (E1-E5, 02/10/2026)
+- [x] Notion SQL 2 — GROUP BY / HAVING / agrégats (E6-E11, 05/10/2026)
+- [x] Notion SQL 3 — JOIN (E12-E16, 14/10/2026)
 - [ ] Requêtes de sanité S04 → S10 écrites
-- [ ] Journal de la semaine 1 rempli
-- [ ] Niveau 1 : exercices 1 à 20 (bloc A)
+  - [x] S06 — un seul titulaire PRIMARY par compte (06/10/2026)
+  - [x] S07 — statut actuel = statut de l'historique (16/10/2026)
+  - [x] S09 — aucune écriture après la clôture (16/10/2026)
+  - [ ] S04, S05 — notion 4 (EXISTS)
+  - [ ] S10 — notion 5 (CTE)
+  - [ ] S08 — notion 6 (fenêtrage)
+- [ ] Notion 3 : fermer la branche (push, PR vers `develop`)
+- [ ] Journal de la semaine 1 rempli (`docs/journal.md`)
+- [ ] Niveau 1 : exercices 1 à 20 (bloc A) du parcours
 
 ## 9. Journal des notions apprises
 
@@ -373,6 +383,8 @@ SELECT * FROM account FETCH FIRST 10 ROWS ONLY;                     -- aperçu, 
 - 14/10/2026 — E16 validé : ma phrase métier contient le chiffre, la cause sans mot technique et la conséquence. Finitions : toujours la **date d'arrêté** (« au 30/09/2026 ») et le bon terme (« total des soldes clients surévalué », pas « argent détenu », car le total inclut les soldes négatifs des prêts).
 - 14/10/2026 — E13, E14, E15 validés : **exercices de la notion 3 terminés**. Le bon nombre de lignes (800 comptes, 2 930 transactions, 13 clients) prouve qu'une jointure n'a rien perdu ni rien dupliqué. Reste : S07 et S09.
 - 14/10/2026 — S07 écrit et juste (`LEFT JOIN` + condition `valid_to IS NULL` dans le `ON` + `OR h.account_id IS NULL`). Confusion pour S09 : j'ai envoyé l'`INSERT` de test au lieu du contrôle. **Contrôle = le détecteur de fumée** (un `SELECT` qui cherche les anomalies, reste dans `sanity_checks.sql`, ne modifie rien) ; **test = l'allumette** (`UPDATE` qui crée une anomalie, puis `ROLLBACK`). Un test complet a 4 étapes : `UPDATE` → relancer le contrôle (il doit sonner) → `ROLLBACK` → relancer (0 ligne).
+- 16/10/2026 — S09 écrit et juste, avec `>` : les 140 écritures **du jour même** de la clôture sont normales (le solde restant est remis au client, la dernière échéance est payée) ; avec `>=`, le détecteur sonnerait pour rien et finirait ignoré. Test : S09 est resté à 0 après l'`UPDATE` (il aurait dû renvoyer 4 lignes pour le compte 5) → le contrôle a probablement été lancé dans **une autre session** (SQL Developer et VS Code = deux connexions ; lecture cohérente). **Un test se fait dans une seule session** : tout le scénario dans un script lancé avec F5.
+- 16/10/2026 — Tests refaits dans un seul script : S07 → 1 ligne puis 0 ; S09 → 4 lignes puis 0. S07 et S09 ajoutés à `sanity_checks.sql`. **Notion 3 terminée.**
 
 
 Ce fichier est le contrôle technique de ma base. Ce sont 10 requêtes à lancer juste après chaque chargement, pour vérifier que les données sont cohérentes avant de faire la moindre analyse dessus.
